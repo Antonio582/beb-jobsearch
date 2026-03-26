@@ -1,167 +1,336 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Application, ApplicationStatus } from "@/types";
+import { useEffect, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "@/lib/LanguageContext";
 import { getApplications, saveApplications } from "@/lib/storage";
+import { Application, ApplicationStatus } from "@/types";
+import { PageTransition, StaggerContainer, StaggerItem } from "@/components/PageTransition";
+import { Card } from "@/components/Card";
+import { StatusBadge } from "@/components/StatusBadge";
+import { TranslationKey } from "@/lib/translations";
 
-const statusColors: Record<ApplicationStatus, string> = {
-  saved: "bg-gray-100 text-gray-700",
-  applied: "bg-blue-100 text-blue-700",
-  interview: "bg-yellow-100 text-yellow-700",
-  offer: "bg-green-100 text-green-700",
-  accepted: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-red-100 text-red-700",
-};
+const statuses: ApplicationStatus[] = ["saved", "applied", "interview", "offer", "accepted", "rejected"];
 
-const statusLabels: Record<ApplicationStatus, string> = {
-  saved: "Saved",
-  applied: "Applied",
-  interview: "Interview",
-  offer: "Offer",
-  accepted: "Accepted",
-  rejected: "Rejected",
-};
-
-const emptyForm: Omit<Application, "id"> = {
-  company: "", position: "", status: "saved", dateApplied: new Date().toISOString().split("T")[0],
-  notes: "", coverLetter: "", resumeVersion: "", interviewNotes: "", url: "",
+const emptyApp: Application = {
+  id: "",
+  company: "",
+  position: "",
+  status: "saved",
+  dateApplied: new Date().toISOString().split("T")[0],
+  notes: "",
+  coverLetter: "",
+  resumeVersion: "",
+  interviewNotes: "",
+  url: "",
 };
 
 export default function ApplicationsPage() {
+  const { t } = useLanguage();
   const [apps, setApps] = useState<Application[]>([]);
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
   const [search, setSearch] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Application | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { setApps(getApplications()); }, []);
+  useEffect(() => {
+    setApps(getApplications());
+    setLoading(false);
+  }, []);
 
-  const filtered = apps
-    .filter((a) => filter === "all" || a.status === filter)
-    .filter((a) => !search || a.company.toLowerCase().includes(search.toLowerCase()) || a.position.toLowerCase().includes(search.toLowerCase()));
+  const persist = useCallback((updated: Application[]) => {
+    setApps(updated);
+    saveApplications(updated);
+  }, []);
 
-  const save = (updated: Application[]) => { setApps(updated); saveApplications(updated); };
-
-  const handleSubmit = () => {
-    if (!form.company || !form.position) return;
-    if (editingId) {
-      save(apps.map((a) => (a.id === editingId ? { ...form, id: editingId } : a)));
-      setEditingId(null);
-    } else {
-      save([{ ...form, id: Date.now().toString() }, ...apps]);
+  const filtered = apps.filter((a) => {
+    if (filter !== "all" && a.status !== filter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return a.company.toLowerCase().includes(q) || a.position.toLowerCase().includes(q);
     }
-    setForm(emptyForm);
+    return true;
+  });
+
+  const handleSave = (app: Application) => {
+    if (app.id) {
+      persist(apps.map((a) => (a.id === app.id ? app : a)));
+    } else {
+      const newApp = { ...app, id: Date.now().toString() };
+      persist([...apps, newApp]);
+    }
+    setEditing(null);
     setShowForm(false);
   };
 
-  const startEdit = (app: Application) => {
-    const { id, ...rest } = app;
-    setForm(rest);
-    setEditingId(id);
-    setShowForm(true);
+  const handleDelete = (id: string) => {
+    persist(apps.filter((a) => a.id !== id));
+    setExpanded(null);
   };
 
-  const deleteApp = (id: string) => { save(apps.filter((a) => a.id !== id)); };
-
-  const updateStatus = (id: string, status: ApplicationStatus) => {
-    save(apps.map((a) => (a.id === id ? { ...a, status } : a)));
-  };
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="skeleton h-20 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">📋 Applications</h1>
-          <p className="text-sm text-gray-500">{apps.length} total applications</p>
-        </div>
-        <button
-          onClick={() => { setShowForm(!showForm); setEditingId(null); setForm(emptyForm); }}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+    <PageTransition>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-[#E8E8ED] tracking-tight">
+          {t("applications")}
+        </h1>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => { setEditing({ ...emptyApp }); setShowForm(true); }}
+          className="px-4 py-2.5 bg-[#7C5CFC] hover:bg-[#8D70FD] text-white rounded-lg text-sm font-medium transition-colors"
         >
-          + New Application
-        </button>
+          + {t("addApplication")}
+        </motion.button>
       </div>
-
-      {/* Form */}
-      {showForm && (
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
-          <h3 className="font-semibold mb-4">{editingId ? "Edit Application" : "New Application"}</h3>
-          <div className="grid md:grid-cols-2 gap-3">
-            <input type="text" placeholder="Company *" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            <input type="text" placeholder="Position *" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ApplicationStatus })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-              {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            <input type="date" value={form.dateApplied} onChange={(e) => setForm({ ...form, dateApplied: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            <input type="url" placeholder="Job URL" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 md:col-span-2" />
-            <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 md:col-span-2" />
-            <textarea placeholder="Cover Letter" value={form.coverLetter} onChange={(e) => setForm({ ...form, coverLetter: e.target.value })} rows={3} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 md:col-span-2" />
-            <textarea placeholder="Interview Notes" value={form.interviewNotes} onChange={(e) => setForm({ ...form, interviewNotes: e.target.value })} rows={2} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 md:col-span-2" />
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button onClick={handleSubmit} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">{editingId ? "Save Changes" : "Add Application"}</button>
-            <button onClick={() => { setShowForm(false); setEditingId(null); setForm(emptyForm); }} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
-          </div>
-        </div>
-      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Search by company or position..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
-        <div className="flex flex-wrap gap-1.5">
-          <button onClick={() => setFilter("all")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${filter === "all" ? "bg-primary-100 text-primary-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>All</button>
-          {(Object.entries(statusLabels) as [ApplicationStatus, string][]).map(([k, v]) => (
-            <button key={k} onClick={() => setFilter(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${filter === k ? statusColors[k] : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{v}</button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setFilter("all")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              filter === "all" ? "bg-[#7C5CFC] text-white" : "bg-[#141415] text-[#8B8B96] border border-[#1F1F22] hover:border-[#7C5CFC]/30"
+            }`}
+          >
+            {t("filterAll")} ({apps.length})
+          </button>
+          {statuses.map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                filter === s ? "bg-[#7C5CFC] text-white" : "bg-[#141415] text-[#8B8B96] border border-[#1F1F22] hover:border-[#7C5CFC]/30"
+              }`}
+            >
+              {t(s as TranslationKey)} ({apps.filter((a) => a.status === s).length})
+            </button>
           ))}
         </div>
+        <input
+          type="text"
+          placeholder={t("searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="sm:ml-auto w-full sm:w-64"
+        />
       </div>
 
-      {/* Application Cards */}
-      <div className="space-y-3">
-        {filtered.length === 0 && (
-          <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center">
-            <p className="text-gray-400">No applications found. {apps.length === 0 ? "Start by adding your first application!" : "Try changing filters."}</p>
+      {/* List */}
+      <StaggerContainer className="space-y-2">
+        <AnimatePresence mode="popLayout">
+          {filtered.map((app) => (
+            <StaggerItem key={app.id}>
+              <motion.div layout>
+                <Card
+                  onClick={() => setExpanded(expanded === app.id ? null : app.id)}
+                  className="transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#E8E8ED] truncate">{app.position}</p>
+                      <p className="text-xs text-[#8B8B96]">{app.company}</p>
+                    </div>
+                    <div className="flex items-center gap-3 ml-4 shrink-0">
+                      <span className="text-xs text-[#55555E] hidden sm:block">{app.dateApplied}</span>
+                      <StatusBadge status={app.status} />
+                      <motion.svg
+                        animate={{ rotate: expanded === app.id ? 180 : 0 }}
+                        className="w-4 h-4 text-[#55555E]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </motion.svg>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {expanded === app.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="mt-4 pt-4 border-t border-[#1F1F22] space-y-3">
+                          {app.url && (
+                            <p className="text-xs">
+                              <span className="text-[#55555E]">{t("url")}: </span>
+                              <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-[#3B82F6] hover:underline">
+                                {app.url}
+                              </a>
+                            </p>
+                          )}
+                          {app.notes && (
+                            <p className="text-xs text-[#8B8B96]">
+                              <span className="text-[#55555E]">{t("notes")}: </span>{app.notes}
+                            </p>
+                          )}
+                          {app.interviewNotes && (
+                            <p className="text-xs text-[#8B8B96]">
+                              <span className="text-[#55555E]">{t("interviewNotes")}: </span>{app.interviewNotes}
+                            </p>
+                          )}
+                          <div className="flex gap-2 pt-2">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => { setEditing(app); setShowForm(true); }}
+                              className="px-3 py-1.5 text-xs bg-[#7C5CFC]/10 text-[#7C5CFC] rounded-lg hover:bg-[#7C5CFC]/20 transition-colors"
+                            >
+                              {t("edit")}
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleDelete(app.id)}
+                              className="px-3 py-1.5 text-xs bg-[#EF4444]/10 text-[#EF4444] rounded-lg hover:bg-[#EF4444]/20 transition-colors"
+                            >
+                              {t("delete")}
+                            </motion.button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </Card>
+              </motion.div>
+            </StaggerItem>
+          ))}
+        </AnimatePresence>
+      </StaggerContainer>
+
+      {filtered.length === 0 && (
+        <Card hover={false}>
+          <div className="text-center py-12">
+            <p className="text-4xl mb-3">📭</p>
+            <p className="text-[#8B8B96]">{t("noApplicationsYet")}</p>
           </div>
-        )}
-        {filtered.map((app) => (
-          <div key={app.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpandedId(expandedId === app.id ? null : app.id)}>
-              <div className="flex-1">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h3 className="font-semibold text-gray-900">{app.company}</h3>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[app.status]}`}>{statusLabels[app.status]}</span>
+        </Card>
+      )}
+
+      {/* Modal */}
+      <AnimatePresence>
+        {showForm && editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowForm(false); setEditing(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            >
+              <h2 className="text-lg font-semibold text-[#E8E8ED] mb-4">
+                {editing.id ? t("edit") : t("addApplication")}
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("company")}</label>
+                  <input
+                    value={editing.company}
+                    onChange={(e) => setEditing({ ...editing, company: e.target.value })}
+                    className="w-full"
+                  />
                 </div>
-                <p className="text-sm text-gray-600">{app.position}</p>
-                <p className="text-xs text-gray-400 mt-1">{app.dateApplied}</p>
-              </div>
-              <span className="text-gray-400 text-sm">{expandedId === app.id ? "▲" : "▼"}</span>
-            </div>
-            {expandedId === app.id && (
-              <div className="border-t border-gray-100 p-4 bg-gray-50/50">
-                {app.notes && <div className="mb-3"><p className="text-xs font-medium text-gray-500 uppercase mb-1">Notes</p><p className="text-sm text-gray-700">{app.notes}</p></div>}
-                {app.coverLetter && <div className="mb-3"><p className="text-xs font-medium text-gray-500 uppercase mb-1">Cover Letter</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{app.coverLetter}</p></div>}
-                {app.interviewNotes && <div className="mb-3"><p className="text-xs font-medium text-gray-500 uppercase mb-1">Interview Notes</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{app.interviewNotes}</p></div>}
-                {app.url && <div className="mb-3"><p className="text-xs font-medium text-gray-500 uppercase mb-1">Job URL</p><a href={app.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 hover:underline">{app.url}</a></div>}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <select value={app.status} onChange={(e) => updateStatus(app.id, e.target.value as ApplicationStatus)} className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none">
-                    {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("position")}</label>
+                  <input
+                    value={editing.position}
+                    onChange={(e) => setEditing({ ...editing, position: e.target.value })}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("status")}</label>
+                  <select
+                    value={editing.status}
+                    onChange={(e) => setEditing({ ...editing, status: e.target.value as ApplicationStatus })}
+                    className="w-full"
+                  >
+                    {statuses.map((s) => (
+                      <option key={s} value={s}>{t(s as TranslationKey)}</option>
+                    ))}
                   </select>
-                  <button onClick={() => startEdit(app)} className="px-3 py-1 bg-primary-100 text-primary-700 rounded text-xs font-medium hover:bg-primary-200">Edit</button>
-                  <button onClick={() => deleteApp(app.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200">Delete</button>
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("dateApplied")}</label>
+                  <input
+                    type="date"
+                    value={editing.dateApplied}
+                    onChange={(e) => setEditing({ ...editing, dateApplied: e.target.value })}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("url")}</label>
+                  <input
+                    value={editing.url}
+                    onChange={(e) => setEditing({ ...editing, url: e.target.value })}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("notes")}</label>
+                  <textarea
+                    value={editing.notes}
+                    onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
+                    className="w-full h-20 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("interviewNotes")}</label>
+                  <textarea
+                    value={editing.interviewNotes}
+                    onChange={(e) => setEditing({ ...editing, interviewNotes: e.target.value })}
+                    className="w-full h-20 resize-none"
+                  />
                 </div>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setShowForm(false); setEditing(null); }}
+                  className="px-4 py-2 text-sm text-[#8B8B96] border border-[#1F1F22] rounded-lg hover:bg-[#1F1F22]/50 transition-colors"
+                >
+                  {t("cancel")}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleSave(editing)}
+                  className="px-4 py-2 text-sm bg-[#7C5CFC] hover:bg-[#8D70FD] text-white rounded-lg transition-colors"
+                >
+                  {t("save")}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </PageTransition>
   );
 }

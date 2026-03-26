@@ -1,3 +1,0 @@
-module.exports=[3315,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(84097);a.n(d("[project]/beb-jobsearch/node_modules/next/dist/client/components/builtin/global-error.js <module evaluation>"))},65971,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(84097);a.n(d("[project]/beb-jobsearch/node_modules/next/dist/client/components/builtin/global-error.js"))},8308,a=>{"use strict";a.i(3315);var b=a.i(65971);a.n(b)},55187,a=>{a.n(a.i(8308))}];
-
-//# sourceMappingURL=0z1e_next_dist_client_components_builtin_global-error_05by3t9.js.map

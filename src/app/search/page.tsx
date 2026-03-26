@@ -1,143 +1,288 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { SavedJob } from "@/types";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "@/lib/LanguageContext";
 import { getSavedJobs, saveSavedJobs } from "@/lib/storage";
+import { SavedJob } from "@/types";
+import { PageTransition, StaggerContainer, StaggerItem } from "@/components/PageTransition";
+import { Card } from "@/components/Card";
 
 const categories = [
-  { name: "Manufacturing", icon: "🏭", keywords: "Manufacturing Engineer Thailand" },
-  { name: "Supply Chain", icon: "📦", keywords: "Supply Chain Analyst Thailand" },
-  { name: "Quality", icon: "✅", keywords: "Quality Engineer Thailand" },
-  { name: "Process Improvement", icon: "📈", keywords: "Process Improvement Engineer Thailand" },
-  { name: "Logistics", icon: "🚛", keywords: "Logistics Engineer Thailand" },
-  { name: "Project Management", icon: "📊", keywords: "Project Manager Industrial Thailand" },
-  { name: "Production", icon: "⚙️", keywords: "Production Engineer Thailand" },
-  { name: "Lean / Six Sigma", icon: "🎯", keywords: "Lean Engineer Six Sigma Thailand" },
+  { key: "manufacturing", icon: "🏭", color: "#7C5CFC" },
+  { key: "supplyChain", icon: "📦", color: "#3B82F6" },
+  { key: "qualityEngineering", icon: "✅", color: "#22C55E" },
+  { key: "processImprovement", icon: "⚙️", color: "#F59E0B" },
+  { key: "generalJobs", icon: "💼", color: "#EF4444" },
+] as const;
+
+const jobBoards = [
+  { name: "JobsDB Thailand", url: "https://th.jobsdb.com", icon: "🇹🇭" },
+  { name: "LinkedIn Jobs", url: "https://www.linkedin.com/jobs", icon: "💼" },
+  { name: "JobThai", url: "https://www.jobthai.com", icon: "🔍" },
+  { name: "Indeed Thailand", url: "https://th.indeed.com", icon: "🌐" },
+  { name: "Glassdoor", url: "https://www.glassdoor.com", icon: "⭐" },
 ];
 
-const jobSites = [
-  { name: "JobThai", url: "https://www.jobthai.com/en/jobs?keyword=", icon: "🇹🇭", color: "bg-blue-50 text-blue-700 border-blue-200" },
-  { name: "LinkedIn Thailand", url: "https://www.linkedin.com/jobs/search/?keywords=", icon: "💼", color: "bg-sky-50 text-sky-700 border-sky-200" },
-  { name: "Indeed Thailand", url: "https://th.indeed.com/jobs?q=", icon: "🔍", color: "bg-purple-50 text-purple-700 border-purple-200" },
-  { name: "Google Jobs", url: "https://www.google.com/search?ibp=htl;jobs&q=", icon: "🌐", color: "bg-green-50 text-green-700 border-green-200" },
-];
+const emptyJob: SavedJob = {
+  id: "",
+  title: "",
+  company: "",
+  location: "",
+  url: "",
+  source: "",
+  savedDate: new Date().toISOString().split("T")[0],
+  category: "manufacturing",
+};
 
 export default function SearchPage() {
-  const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
-  const [showSaveForm, setShowSaveForm] = useState(false);
-  const [saveForm, setSaveForm] = useState({ title: "", company: "", location: "", url: "", source: "", category: "" });
+  const { t } = useLanguage();
+  const [jobs, setJobs] = useState<SavedJob[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<SavedJob | null>(null);
+  const [filterCat, setFilterCat] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { setSavedJobs(getSavedJobs()); }, []);
+  useEffect(() => {
+    setJobs(getSavedJobs());
+    setLoading(false);
+  }, []);
 
-  const saveJob = () => {
-    if (!saveForm.title) return;
-    const job: SavedJob = { ...saveForm, id: Date.now().toString(), savedDate: new Date().toISOString().split("T")[0] };
-    const updated = [job, ...savedJobs];
-    setSavedJobs(updated);
-    saveSavedJobs(updated);
-    setSaveForm({ title: "", company: "", location: "", url: "", source: "", category: "" });
-    setShowSaveForm(false);
-  };
-
-  const removeJob = (id: string) => {
-    const updated = savedJobs.filter((j) => j.id !== id);
-    setSavedJobs(updated);
+  const persist = (updated: SavedJob[]) => {
+    setJobs(updated);
     saveSavedJobs(updated);
   };
+
+  const handleSave = (job: SavedJob) => {
+    if (job.id) {
+      persist(jobs.map((j) => (j.id === job.id ? job : j)));
+    } else {
+      persist([...jobs, { ...job, id: Date.now().toString() }]);
+    }
+    setEditing(null);
+    setShowForm(false);
+  };
+
+  const handleDelete = (id: string) => {
+    persist(jobs.filter((j) => j.id !== id));
+  };
+
+  const filtered = filterCat === "all" ? jobs : jobs.filter((j) => j.category === filterCat);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="skeleton h-24 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">🔍 Job Search</h1>
-        <p className="text-sm text-gray-500">Find Industrial Engineering jobs in Thailand</p>
-      </div>
+    <PageTransition>
+      <h1 className="text-2xl font-bold text-[#E8E8ED] tracking-tight mb-6">
+        {t("jobSearch")}
+      </h1>
 
-      {/* Categories */}
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Search by Category</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {categories.map((cat) => (
-            <div key={cat.name} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="text-2xl mb-2">{cat.icon}</div>
-              <h3 className="font-medium text-sm mb-3">{cat.name}</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {jobSites.map((site) => (
-                  <a key={site.name} href={`${site.url}${encodeURIComponent(cat.keywords)}`} target="_blank" rel="noopener noreferrer" className={`text-xs px-2 py-1 rounded-full border ${site.color} hover:opacity-80 transition-opacity`}>
-                    {site.icon} {site.name}
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Category Cards */}
+      <StaggerContainer className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+        {categories.map((cat) => (
+          <StaggerItem key={cat.key}>
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setFilterCat(filterCat === cat.key ? "all" : cat.key)}
+              className={`w-full p-4 rounded-xl text-center transition-all border ${
+                filterCat === cat.key
+                  ? "border-[var(--cat-color)] bg-[var(--cat-color)]/10"
+                  : "border-[#1F1F22] bg-[#141415] hover:border-[var(--cat-color)]/30"
+              }`}
+              style={{ "--cat-color": cat.color } as React.CSSProperties}
+            >
+              <span className="text-2xl block mb-2">{cat.icon}</span>
+              <span className="text-xs font-medium text-[#E8E8ED]">
+                {t(cat.key)}
+              </span>
+              <p className="text-xs text-[#55555E] mt-1">
+                {jobs.filter((j) => j.category === cat.key).length} {t("saved").toLowerCase()}
+              </p>
+            </motion.button>
+          </StaggerItem>
+        ))}
+      </StaggerContainer>
 
-      {/* Quick Search */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-8">
-        <h2 className="text-lg font-semibold mb-4">Quick Search All Sites</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {jobSites.map((site) => (
-            <a key={site.name} href={`${site.url}${encodeURIComponent("Industrial Engineer Thailand")}`} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-2 p-3 rounded-xl border ${site.color} hover:opacity-80 transition-opacity`}>
-              <span className="text-xl">{site.icon}</span>
-              <span className="text-sm font-medium">{site.name}</span>
+      {/* Job Boards */}
+      <motion.h3
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-sm font-semibold text-[#8B8B96] uppercase tracking-wider mb-3"
+      >
+        {t("jobBoards")}
+      </motion.h3>
+      <StaggerContainer className="flex flex-wrap gap-2 mb-8">
+        {jobBoards.map((board) => (
+          <StaggerItem key={board.name}>
+            <a
+              href={board.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <motion.span
+                whileHover={{ scale: 1.05 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#141415] border border-[#1F1F22] text-sm text-[#8B8B96] hover:text-[#3B82F6] hover:border-[#3B82F6]/30 transition-colors cursor-pointer"
+              >
+                <span>{board.icon}</span>
+                {board.name}
+              </motion.span>
             </a>
-          ))}
-        </div>
-      </div>
+          </StaggerItem>
+        ))}
+      </StaggerContainer>
 
       {/* Saved Jobs */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">💾 Saved Jobs ({savedJobs.length})</h2>
-          <button onClick={() => setShowSaveForm(!showSaveForm)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-            {showSaveForm ? "Cancel" : "+ Save Job"}
-          </button>
-        </div>
+      <div className="flex items-center justify-between mb-4">
+        <motion.h3
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-sm font-semibold text-[#8B8B96] uppercase tracking-wider"
+        >
+          {t("savedJobs")} ({filtered.length})
+        </motion.h3>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => { setEditing({ ...emptyJob }); setShowForm(true); }}
+          className="px-4 py-2 bg-[#7C5CFC] hover:bg-[#8D70FD] text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          + {t("addSavedJob")}
+        </motion.button>
+      </div>
 
-        {showSaveForm && (
-          <div className="border border-gray-200 rounded-xl p-4 mb-4 bg-gray-50">
-            <div className="grid md:grid-cols-2 gap-3">
-              <input type="text" placeholder="Job Title *" value={saveForm.title} onChange={(e) => setSaveForm({ ...saveForm, title: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-              <input type="text" placeholder="Company" value={saveForm.company} onChange={(e) => setSaveForm({ ...saveForm, company: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-              <input type="text" placeholder="Location" value={saveForm.location} onChange={(e) => setSaveForm({ ...saveForm, location: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-              <input type="url" placeholder="Job URL" value={saveForm.url} onChange={(e) => setSaveForm({ ...saveForm, url: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-              <select value={saveForm.source} onChange={(e) => setSaveForm({ ...saveForm, source: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">Source</option>
-                {jobSites.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-                <option value="Other">Other</option>
-              </select>
-              <select value={saveForm.category} onChange={(e) => setSaveForm({ ...saveForm, category: e.target.value })} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="">Category</option>
-                {categories.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
-              </select>
-            </div>
-            <button onClick={saveJob} className="mt-3 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700">Save Job</button>
+      {filtered.length === 0 ? (
+        <Card hover={false}>
+          <div className="text-center py-12">
+            <p className="text-4xl mb-3">🔍</p>
+            <p className="text-[#8B8B96]">{t("noSavedJobs")}</p>
           </div>
-        )}
-
-        {savedJobs.length === 0 ? (
-          <p className="text-gray-400 text-sm">No saved jobs yet. Find interesting listings and save them here!</p>
-        ) : (
-          <div className="space-y-2">
-            {savedJobs.map((job) => (
-              <div key={job.id} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-medium">{job.title}</h3>
-                    {job.category && <span className="text-xs bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full">{job.category}</span>}
-                    {job.source && <span className="text-xs text-gray-400">{job.source}</span>}
+        </Card>
+      ) : (
+        <StaggerContainer className="space-y-2">
+          {filtered.map((job) => (
+            <StaggerItem key={job.id}>
+              <Card>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#E8E8ED] truncate">{job.title}</p>
+                    <p className="text-xs text-[#8B8B96]">{job.company} · {job.location}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-[#55555E]">{job.source}</span>
+                      <span className="text-xs text-[#55555E]">·</span>
+                      <span className="text-xs text-[#55555E]">{job.savedDate}</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500">{[job.company, job.location].filter(Boolean).join(" • ")}</p>
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    {job.url && (
+                      <a
+                        href={job.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg hover:bg-[#1F1F22] transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-[#3B82F6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      onClick={() => handleDelete(job.id)}
+                      className="p-1.5 rounded-lg hover:bg-[#EF4444]/10 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-[#55555E] hover:text-[#EF4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </motion.button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {job.url && <a href={job.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 hover:underline">Open ↗</a>}
-                  <button onClick={() => removeJob(job.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+              </Card>
+            </StaggerItem>
+          ))}
+        </StaggerContainer>
+      )}
+
+      {/* Add/Edit Modal */}
+      <AnimatePresence>
+        {showForm && editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowForm(false); setEditing(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass rounded-xl p-6 w-full max-w-lg"
+            >
+              <h2 className="text-lg font-semibold text-[#E8E8ED] mb-4">{t("addSavedJob")}</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("jobTitle")}</label>
+                  <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("company")}</label>
+                  <input value={editing.company} onChange={(e) => setEditing({ ...editing, company: e.target.value })} className="w-full" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("location")}</label>
+                  <input value={editing.location} onChange={(e) => setEditing({ ...editing, location: e.target.value })} className="w-full" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("url")}</label>
+                  <input value={editing.url} onChange={(e) => setEditing({ ...editing, url: e.target.value })} className="w-full" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("source")}</label>
+                  <input value={editing.source} onChange={(e) => setEditing({ ...editing, source: e.target.value })} className="w-full" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8B8B96] mb-1 block">{t("category")}</label>
+                  <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })} className="w-full">
+                    {categories.map((c) => (
+                      <option key={c.key} value={c.key}>{t(c.key)}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setShowForm(false); setEditing(null); }}
+                  className="px-4 py-2 text-sm text-[#8B8B96] border border-[#1F1F22] rounded-lg hover:bg-[#1F1F22]/50 transition-colors"
+                >
+                  {t("cancel")}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleSave(editing)}
+                  className="px-4 py-2 text-sm bg-[#7C5CFC] hover:bg-[#8D70FD] text-white rounded-lg transition-colors"
+                >
+                  {t("save")}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
-    </div>
+      </AnimatePresence>
+    </PageTransition>
   );
 }

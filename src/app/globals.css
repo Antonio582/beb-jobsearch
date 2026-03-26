@@ -1,20 +1,95 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
+  --color-bg: #0A0A0B;
+  --color-surface: #141415;
+  --color-surface-border: #1F1F22;
+  --color-sidebar: #111112;
+  --color-accent: #7C5CFC;
+  --color-accent-hover: #8D70FD;
+  --color-blue: #3B82F6;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-text-primary: #E8E8ED;
+  --color-text-secondary: #8B8B96;
+  --color-text-muted: #55555E;
 }
 
-@layer base {
-  body {
-    font-family: "Inter", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, sans-serif;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #0A0A0B;
+  color: #E8E8ED;
+  font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0B;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A2A2E;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3A3A3E;
+}
+
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #141415 25%, #1F1F22 50%, #141415 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Glass morphism */
+.glass {
+  background: rgba(20, 20, 21, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #1F1F22;
+}
+
+/* Focus styles */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: #7C5CFC;
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.2);
+}
+
+input, textarea, select {
+  background: #0A0A0B;
+  border: 1px solid #1F1F22;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #E8E8ED;
+  font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Pulse animation for status badges */
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
