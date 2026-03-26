@@ -1,0 +1,34 @@
+{
+  "personalInfo": {
+    "name": "Beb",
+    "title": "Industrial Engineer",
+    "email": "",
+    "phone": "",
+    "location": "Thailand",
+    "linkedin": "",
+    "summary": ""
+  },
+  "education": [
+    {
+      "id": "1",
+      "institution": "Chiang Mai University (CMU)",
+      "degree": "Bachelor of Engineering",
+      "field": "Industrial Engineering",
+      "location": "Chiang Mai, Thailand",
+      "startDate": "",
+      "endDate": "",
+      "gpa": "",
+      "highlights": []
+    }
+  ],
+  "experience": [],
+  "skills": {
+    "technical": [],
+    "software": [],
+    "languages": [],
+    "certifications": []
+  },
+  "projects": [],
+  "activities": [],
+  "references": []
+}
